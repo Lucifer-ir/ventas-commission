@@ -1,25 +1,200 @@
 <!doctype html>
 <html lang="fa" dir="rtl">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1220">
 <title>Ventas | محاسبه پورسانت</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v314.0.8/full/pyodide.js"></script>
 <style>
-:root{font-family:Tahoma,Arial,sans-serif;color:#e8edf5;background:#0b1220}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 80% 0,#17243a 0,transparent 38%),#0b1220}.wrap{max-width:1200px;margin:auto;padding:28px 18px}.top{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap}.brand{font-size:22px;font-weight:800}.muted{color:#94a3b8;font-size:13px}.panel{background:#111c2e;border:1px solid #26354b;border-radius:18px;padding:20px;margin-top:18px}.uploadgrid,.stats,.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}.upload{border:1px dashed #49617f;border-radius:14px;padding:18px;background:#0d1727}.upload label{display:block;font-weight:bold;margin-bottom:10px}.upload input{width:100%;font-size:12px;color:#cbd5e1}.hint{font-size:12px;color:#94a3b8;margin-top:8px;line-height:1.8}.btn{border:0;border-radius:10px;padding:11px 16px;background:#60a5fa;color:#07111f;font-weight:bold;cursor:pointer}.btn.secondary{background:#26364d;color:#e5edf8}.btn:disabled{opacity:.4;cursor:not-allowed}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.field label{display:block;font-size:12px;color:#9fb0c7;margin-bottom:7px}.field input,.field select{width:100%;padding:11px;border-radius:10px;border:1px solid #33465f;background:#0b1525;color:#fff}.stats{margin-top:18px}.stat{background:#0c1728;border:1px solid #26354b;border-radius:14px;padding:16px}.stat small{color:#94a3b8}.stat strong{display:block;font-size:20px;margin-top:8px;direction:ltr;text-align:right}.sectiontitle{font-size:17px;margin:0 0 14px}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:650px;font-size:13px}th,td{padding:11px;border-bottom:1px solid #26354b;text-align:right;white-space:nowrap}th{color:#9fb0c7;font-weight:600;background:#0d1727}td.num{direction:ltr;text-align:left;font-variant-numeric:tabular-nums}.pill{padding:4px 8px;border-radius:20px;background:#173c35;color:#86efac;font-size:11px}.hidden{display:none}.note{line-height:1.9;color:#aab9cc;font-size:13px}.status{margin-top:12px;font-size:13px;color:#93c5fd}
-</style></head><body><main class="wrap"><header class="top"><div><div class="brand">VENTAS <span style="color:#60a5fa">/</span> محاسبه پورسانت</div><div class="muted">پردازش محلی فایل‌ها در مرورگر؛ اطلاعات جایی ارسال نمی‌شود.</div></div><span class="pill">نسخه اولیه</span></header>
-<section class="panel"><h2 class="sectiontitle">۱. بارگذاری فایل‌ها</h2><div class="uploadgrid"><div class="upload"><label>فایل لیست فاکتورها</label><input id="salesFile" type="file" accept=".xlsx,.xls"></div><div class="upload"><label>فایل درصد ادارات و کارمزدها</label><input id="ratesFile" type="file" accept=".xlsx,.xls"></div></div><div class="hint">هر دو فایل اکسل را انتخاب کن. درصدهای خالی مطابق توضیحت صفر درصد و بدون کارمزد در نظر گرفته می‌شوند.</div><div class="actions"><button class="btn" id="run">محاسبه پورسانت</button><button class="btn secondary" id="reset">پاک کردن</button></div><div id="status" class="status"></div></section>
-<section id="results" class="hidden"><div class="panel"><h2 class="sectiontitle">۲. تنظیم گزارش</h2><div class="filters"><div class="field"><label>ماه فاکتور</label><select id="month"><option value="all">همه ماه‌ها</option></select></div><div class="field"><label>درصد پورسانت کارمند</label><input id="commissionRate" type="number" min="0" step="0.01" value="1"></div></div><div class="note">فرمول: پورسانت = درصد پورسانت × (فروش خالص کالا − کارمزد روش/روش‌های پرداخت). در فاکتورهای چندپرداختی، کارمزد هر روش بر اساس مبلغ همان پرداخت محاسبه و بین ردیف‌های کالا به نسبت مبلغ فروش تخصیص داده می‌شود.</div><div class="stats" id="stats"></div></div>
-<div class="panel"><h2 class="sectiontitle">۳. جمع پورسانت کارکنان</h2><div class="tablewrap"><table id="staffTable"></table></div><div class="actions"><button class="btn" id="exportStaff">خروجی اکسل کارکنان</button></div></div>
-<div class="panel"><h2 class="sectiontitle">۴. فاکتورهای دارای مغایرت یا اطلاعات ناقص</h2><div class="note">فاکتورهای مشکل‌دار از محاسبه پورسانت قطعی کنار گذاشته می‌شوند.</div><div class="tablewrap"><table id="issuesTable"></table></div><div class="actions"><button class="btn secondary" id="exportIssues">خروجی اکسل مغایرت‌ها</button></div></div>
-<div class="panel"><h2 class="sectiontitle">۵. جزئیات فاکتورها</h2><div class="tablewrap"><table id="invoiceTable"></table></div><div class="actions"><button class="btn secondary" id="exportInvoices">خروجی اکسل فاکتورها</button></div></div></section></main>
+:root{font-family:Tahoma,Arial,sans-serif;color:#e8edf5;background:#0b1220;color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 82% 0,#1a2a43 0,transparent 38%),#0b1220;min-height:100vh}.wrap{max-width:1240px;margin:auto;padding:30px 18px 64px}.top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:8px}.brand{font-size:23px;font-weight:800;letter-spacing:.3px}.muted{color:#94a3b8;font-size:13px;margin-top:7px}.pill{display:inline-flex;align-items:center;gap:7px;padding:7px 11px;border-radius:30px;background:#173c35;color:#86efac;font-size:11px}.dot{width:7px;height:7px;border-radius:50%;background:#64748b}.dot.ready{background:#4ade80;box-shadow:0 0 0 4px #4ade8020}.dot.loading{background:#fbbf24;box-shadow:0 0 0 4px #fbbf2420}.panel{background:#111c2e;border:1px solid #26354b;border-radius:18px;padding:21px;margin-top:18px;box-shadow:0 16px 40px #00000012}.uploadgrid,.stats,.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(205px,1fr));gap:14px}.upload{border:1px dashed #49617f;border-radius:14px;padding:18px;background:#0d1727;min-height:125px}.upload label{display:block;font-weight:bold;margin-bottom:13px}.upload input{width:100%;font-size:12px;color:#cbd5e1}.hint{font-size:12px;color:#94a3b8;margin-top:10px;line-height:1.9}.btn{display:inline-flex;justify-content:center;align-items:center;gap:8px;border:0;border-radius:10px;padding:11px 16px;background:#60a5fa;color:#07111f;font-weight:bold;cursor:pointer;text-decoration:none;font-size:13px}.btn.secondary{background:#26364d;color:#e5edf8}.btn.ghost{background:#13233a;color:#bfdbfe;border:1px solid #315072}.btn:disabled{opacity:.45;cursor:not-allowed}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:17px}.field label{display:block;font-size:12px;color:#9fb0c7;margin-bottom:7px}.field input,.field select{width:100%;padding:11px;border-radius:10px;border:1px solid #33465f;background:#0b1525;color:#fff}.stats{margin-top:18px}.stat{background:#0c1728;border:1px solid #26354b;border-radius:14px;padding:16px;min-width:0}.stat small{color:#94a3b8}.stat strong{display:block;font-size:20px;margin-top:8px;direction:ltr;text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}.sectiontitle{font-size:17px;margin:0 0 14px}.tablewrap{overflow:auto;border:1px solid #26354b;border-radius:12px}table{width:100%;border-collapse:collapse;min-width:690px;font-size:12px}th,td{padding:12px;border-bottom:1px solid #26354b;text-align:right;vertical-align:top;white-space:nowrap}th{color:#9fb0c7;font-weight:600;background:#0d1727;position:sticky;top:0}tr:last-child td{border-bottom:0}td.num{direction:ltr;text-align:left;font-variant-numeric:tabular-nums}.hidden{display:none}.note{line-height:1.9;color:#aab9cc;font-size:12px}.status{margin-top:12px;font-size:13px;color:#93c5fd;line-height:1.8;min-height:20px}.status.error{color:#fda4af}.status.ok{color:#86efac}.pythonbox{display:flex;align-items:center;gap:9px;margin-top:15px;padding:11px 13px;background:#0c1728;border:1px solid #26354b;border-radius:11px;color:#b8c7da;font-size:12px;flex-wrap:wrap}.pythonbox a{color:#93c5fd;text-decoration:none;margin-right:auto}.tiny{font-size:11px;color:#8294ab}.sectionhead{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:13px}.sectionhead .sectiontitle{margin:0}.footer{margin-top:22px;text-align:center;color:#64748b;font-size:11px;line-height:1.8}.tag{display:inline-block;font-size:10px;padding:4px 8px;border-radius:20px;background:#25354b;color:#cbd5e1}.notice{padding:12px 14px;border-radius:12px;background:#252216;border:1px solid #514420;color:#fcd34d;font-size:12px;line-height:1.9;margin-top:13px}@media(max-width:640px){.wrap{padding:20px 12px 45px}.panel{padding:15px;margin-top:13px}.brand{font-size:20px}.stat strong{font-size:17px}}
+</style>
+</head>
+<body>
+<main class="wrap">
+<header class="top">
+ <div><div class="brand">VENTAS <span style="color:#60a5fa">/</span> محاسبه پورسانت</div><div class="muted">تحلیل فاکتورها و محاسبه پورسانت کارکنان با موتور Python</div></div>
+ <span class="pill"><span class="dot" id="pythonDot"></span><span id="pythonStatus">موتور Python آماده‌سازی نشده</span></span>
+</header>
+<section class="panel">
+ <h2 class="sectiontitle">۱. بارگذاری فایل‌ها</h2>
+ <div class="uploadgrid">
+  <div class="upload"><label for="salesFile">فایل لیست فاکتورها</label><input id="salesFile" type="file" accept=".xlsx,.xls"><div class="hint">فایل گزارش فروش با ردیف‌های اطلاعات تراکنش و اطلاعات پرداخت</div></div>
+  <div class="upload"><label for="ratesFile">فایل درصد ادارات و کارمزدها</label><input id="ratesFile" type="file" accept=".xlsx,.xls"><div class="hint">ستون نام روش پرداخت و ستون درصد کارمزد از این فایل خوانده می‌شود.</div></div>
+ </div>
+ <div class="hint">فایل‌ها فقط داخل مرورگر شما پردازش می‌شوند و به مخزن GitHub یا سرور دیگری آپلود نمی‌شوند. درصدهای خالی در فایل نرخ‌ها دقیقاً مطابق توضیحت، صفر درصد کارمزد محسوب می‌شوند.</div>
+ <div class="actions"><button class="btn" id="run">تحلیل فایل‌ها و محاسبه پورسانت</button><button class="btn secondary" id="reset">پاک کردن اطلاعات</button></div>
+ <div id="status" class="status" role="status" aria-live="polite"></div>
+ <div class="pythonbox"><span class="tag">PYTHON ENGINE</span><span>تحلیل و محاسبات با Python / Pyodide انجام می‌شود.</span><a href="./commission_engine.py" download>دریافت کد Python تحلیل</a></div>
+</section>
+<section id="results" class="hidden">
+ <div class="panel">
+  <h2 class="sectiontitle">۲. تنظیمات محاسبه</h2>
+  <div class="filters">
+   <div class="field"><label for="month">ماه فاکتور</label><select id="month"><option value="all">همه ماه‌ها</option></select></div>
+   <div class="field"><label for="commissionRate">درصد پورسانت کارمند</label><input id="commissionRate" type="number" min="0" step="0.01" value="1"></div>
+  </div>
+  <div class="note" style="margin-top:12px">مبنای محاسبه: مبلغ نهایی ردیف‌های کالا پس از تخفیف‌های خود کالا، منهای کارمزد روش پرداخت. کارمزد فاکتورهای چندپرداختی از روی مبلغ هر روش جداگانه محاسبه و متناسب با فروش هر ردیف کالا بین ماموران فروش تخصیص داده می‌شود. برگشت‌ها و مبالغ منفی به‌صورت کاهنده در پورسانت لحاظ می‌شوند.</div>
+  <div class="stats" id="stats"></div>
+ </div>
+ <div class="panel"><div class="sectionhead"><h2 class="sectiontitle">۳. جمع پورسانت کارکنان</h2><span class="tag">گزارش ماه انتخاب‌شده</span></div><div class="tablewrap"><table id="staffTable"></table></div><div class="actions"><button class="btn" id="exportStaff">خروجی اکسل کارکنان</button></div></div>
+ <div class="panel"><div class="sectionhead"><h2 class="sectiontitle">۴. فاکتورهای نیازمند بررسی</h2><span class="tag" id="issueCount">۰ مورد</span></div><div class="note" style="margin-bottom:12px">فاکتورهایی که مبلغ کالا، مامور فروش یا روش پرداخت آن‌ها ناقص است یا جمع پرداخت با فروش نهایی تطابق ندارد، از پورسانت قطعی کنار گذاشته شده‌اند. علت هر مورد در ستون آخر آمده است.</div><div class="tablewrap"><table id="issuesTable"></table></div><div class="actions"><button class="btn secondary" id="exportIssues">خروجی اکسل مغایرت‌ها</button></div></div>
+ <div class="panel"><div class="sectionhead"><h2 class="sectiontitle">۵. جزئیات فاکتورها</h2><span class="tag">فاکتورهای محاسبه‌شده و بررسی‌نشده</span></div><div class="tablewrap"><table id="invoiceTable"></table></div><div class="actions"><button class="btn secondary" id="exportInvoices">خروجی اکسل جزئیات فاکتورها</button></div></div>
+</section>
+<div class="footer">Ventas Commission · تحلیل Python داخل مرورگر · فایل‌های اکسل شما از دستگاه خارج نمی‌شوند</div>
+</main>
 <script>
-let invoices=[],rates={},staffRows=[],issueRows=[],invoiceRows=[];const $=id=>document.getElementById(id),num=v=>{if(v===null||v===undefined||v==="")return null;let n=Number(String(v).replace(/,/g,""));return Number.isFinite(n)?n:null},clean=v=>String(v??"").trim(),money=v=>Math.round(v||0).toLocaleString("en-US")+" ریال";
-function readFile(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:"array"});resolve(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:null,raw:true}))}catch(err){reject(err)}};r.onerror=reject;r.readAsArrayBuffer(file)})}
-function parseSales(rows){let out=[],starts=[];rows.forEach((r,i)=>{if(clean(r[0])==="اطلاعات تراکنش")starts.push(i)});starts.forEach((start,k)=>{let end=starts[k+1]??rows.length,block=rows.slice(start,end),h=rows[start],payStart=block.findIndex(r=>clean(r[0])==="اطلاعات پرداخت+"),items=[],payments=[],problems=[];block.forEach(r=>{if(clean(r[6])==="نام کالا"){let amount=num(r[9]);items.push({agent:clean(r[8]),amount,product:clean(r[14]),qty:num(r[12]),unit:num(r[13])});if(amount===null)problems.push("مبلغ نهایی یک یا چند ردیف کالا خالی است");if(!clean(r[8]))problems.push("نام مامور فروش در یک یا چند ردیف خالی است")}});if(payStart>=0){for(let j=payStart+2;j<block.length;j++){let r=block[j],method=clean(r[1]);if(!method||method==="جمع روش های پرداخت"||method==="روش پرداخت")continue;let amount=num(r[0]);if(amount===null){problems.push("مبلغ یکی از روش‌های پرداخت نامعتبر است");continue}payments.push({method,amount})}}else problems.push("بخش اطلاعات پرداخت وجود ندارد");if(!items.length)problems.push("هیچ ردیف کالایی شناسایی نشد");if(!payments.length)problems.push("روش پرداخت ثبت نشده است");out.push({date:clean(h[1]),invoice:clean(h[7]),customer:clean(h[11]),items,payments,problems})});return out}
-function parseRates(rows){let out={};rows.forEach(r=>{let method=clean(r[1]);if(method){let rate=num(r[2]);out[method]=rate===null?0:rate}});return out}
-function calculate(){let pct=num($("commissionRate").value);if(pct===null||pct<0){alert("درصد پورسانت معتبر نیست");return}let selected=$("month").value,active=invoices.filter(x=>selected==="all"||x.date.startsWith(selected)),staff={},issues=[],details=[];active.forEach(inv=>{let itemTotal=inv.items.reduce((s,x)=>s+(x.amount||0),0),paymentTotal=inv.payments.reduce((s,x)=>s+x.amount,0),fee=0,unknown=[];inv.payments.forEach(p=>{if(Object.prototype.hasOwnProperty.call(rates,p.method))fee+=p.amount*rates[p.method]/100;else if(p.amount!==0)unknown.push(p.method)});let problems=[...inv.problems];if(Math.abs(itemTotal-paymentTotal)>1)problems.push(`جمع فروش ردیف‌ها (${itemTotal}) با جمع پرداخت‌ها (${paymentTotal}) برابر نیست`);if(unknown.length)problems.push("روش پرداخت در فایل درصدها پیدا نشد: "+[...new Set(unknown)].join("، "));if(problems.length){issues.push({تاریخ:inv.date,شماره_فاکتور:inv.invoice,مشتری:inv.customer,فروش_ردیفها:itemTotal,جمع_پرداخت:paymentTotal,علت:problems.join(" | ")});details.push({تاریخ:inv.date,شماره_فاکتور:inv.invoice,مشتری:inv.customer,فروش_خالص:itemTotal,کارمزد:fee,مبنای_پورسانت:0,پورسانت:0,وضعیت:"نیازمند بررسی"});return}let totalNet=itemTotal-fee;if(totalNet<0){issues.push({تاریخ:inv.date,شماره_فاکتور:inv.invoice,مشتری:inv.customer,فروش_ردیفها:itemTotal,جمع_پرداخت:paymentTotal,علت:"کارمزد از مبلغ فروش بیشتر شده است"});return}inv.items.forEach(it=>{let share=itemTotal?it.amount/itemTotal:0,base=it.amount-fee*share,commission=base*pct/100;if(!staff[it.agent])staff[it.agent]={employee:it.agent,sales:0,fee:0,base:0,commission:0,lines:0};let s=staff[it.agent];s.sales+=it.amount;s.fee+=fee*share;s.base+=base;s.commission+=commission;s.lines++});details.push({تاریخ:inv.date,شماره_فاکتور:inv.invoice,مشتری:inv.customer,فروش_خالص:itemTotal,کارمزد:fee,مبنای_پورسانت:totalNet,پورسانت:totalNet*pct/100,وضعیت:"محاسبه شد"})});staffRows=Object.values(staff).sort((a,b)=>b.commission-a.commission).map(s=>({کارمند:s.employee,تعداد_ردیف_کالا:s.lines,فروش_خالص:s.sales,سهم_کارمزد:s.fee,فروش_پس_از_کارمزد:s.base,درصد_پورسانت:pct,پورسانت:s.commission}));issueRows=issues;invoiceRows=details;render()}
-function render(){let done=invoiceRows.filter(x=>x.وضعیت==="محاسبه شد"),totalSales=done.reduce((s,x)=>s+x.فروش_خالص,0),totalFee=done.reduce((s,x)=>s+x.کارمزد,0),totalComm=staffRows.reduce((s,x)=>s+x.پورسانت,0);$("stats").innerHTML=[["فاکتورهای محاسبه‌شده",done.length],["فاکتورهای نیازمند بررسی",issueRows.length],["فروش خالص قابل محاسبه",money(totalSales)],["کارمزد قابل محاسبه",money(totalFee)],["کل پورسانت",money(totalComm)]].map(x=>`<div class="stat"><small>${x[0]}</small><strong>${x[1]}</strong></div>`).join("");table("staffTable",staffRows);table("issuesTable",issueRows);table("invoiceTable",invoiceRows)}
-function table(id,data){let el=$(id);if(!data.length){el.innerHTML="<tr><td>موردی برای نمایش وجود ندارد</td></tr>";return}let cols=Object.keys(data[0]);el.innerHTML="<thead><tr>"+cols.map(c=>`<th>${c.replaceAll("_"," ")}</th>`).join("")+"</tr></thead><tbody>"+data.map(row=>"<tr>"+cols.map(c=>{let v=row[c];return `<td class="${typeof v==="number"?"num":""}">${typeof v==="number"?Math.round(v).toLocaleString("en-US"):String(v??"")}</td>`}).join("")+"</tr>").join("")+"</tbody>"}
-function exportXlsx(data,name){if(!data.length){alert("داده‌ای برای خروجی وجود ندارد");return}let ws=XLSX.utils.json_to_sheet(data),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"گزارش");XLSX.writeFile(wb,name)}
-$("run").onclick=async()=>{try{if(!$("salesFile").files[0]||!$("ratesFile").files[0]){alert("هر دو فایل اکسل را انتخاب کن");return}$("status").textContent="در حال خواندن فایل‌ها...";let [s,r]=await Promise.all([readFile($("salesFile").files[0]),readFile($("ratesFile").files[0])]);invoices=parseSales(s);rates=parseRates(r);let months=[...new Set(invoices.map(x=>x.date.slice(0,7)).filter(Boolean))].sort();$("month").innerHTML='<option value="all">همه ماه‌ها</option>'+months.map(m=>`<option value="${m}">${m}</option>`).join("");$("results").classList.remove("hidden");calculate();$("status").textContent=`${invoices.length.toLocaleString("en-US")} فاکتور و ${Object.keys(rates).length} روش پرداخت خوانده شد.`}catch(e){console.error(e);$("status").textContent="خطا در خواندن فایل: "+e.message}};$("month").onchange=calculate;$("commissionRate").onchange=calculate;$("exportStaff").onclick=()=>exportXlsx(staffRows,"commission-by-employee.xlsx");$("exportIssues").onclick=()=>exportXlsx(issueRows,"invoice-issues.xlsx");$("exportInvoices").onclick=()=>exportXlsx(invoiceRows,"invoice-details.xlsx");$("reset").onclick=()=>{invoices=[];rates={};$("salesFile").value="";$("ratesFile").value="";$("results").classList.add("hidden");$("status").textContent=""};
-</script></body></html>
+'use strict';
+const $ = id => document.getElementById(id);
+let pyodideInstance = null;
+let pyodidePromise = null;
+let lastAnalysis = null;
+
+function setStatus(message, kind='') {
+  const el = $('status');
+  el.textContent = message;
+  el.className = 'status' + (kind ? ' ' + kind : '');
+}
+function setPythonStatus(message, state='') {
+  $('pythonStatus').textContent = message;
+  $('pythonDot').className = 'dot' + (state ? ' ' + state : '');
+}
+function readWorkbook(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = event => {
+      try {
+        const workbook = XLSX.read(event.target.result, {type:'array'});
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        resolve(XLSX.utils.sheet_to_json(sheet, {header:1, defval:null, raw:true}));
+      } catch (error) { reject(error); }
+    };
+    reader.onerror = () => reject(new Error('خواندن فایل اکسل ناموفق بود.'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+async function getPythonEngine() {
+  if (pyodideInstance) return pyodideInstance;
+  if (!pyodidePromise) {
+    pyodidePromise = (async () => {
+      setPythonStatus('در حال بارگذاری Python...', 'loading');
+      if (typeof loadPyodide !== 'function') throw new Error('کتابخانه Pyodide بارگذاری نشد. اتصال اینترنت و CDN را بررسی کن.');
+      const runtime = await loadPyodide({indexURL:'https://cdn.jsdelivr.net/pyodide/v314.0.8/full/'});
+      setStatus('محیط Python آماده شد؛ در حال دریافت موتور تحلیل...');
+      const response = await fetch('./commission_engine.py', {cache:'no-store'});
+      if (!response.ok) throw new Error('فایل commission_engine.py از GitHub Pages دریافت نشد.');
+      const pythonSource = await response.text();
+      runtime.runPython(pythonSource);
+      const version = runtime.runPython('import sys; sys.version.split()[0]');
+      pyodideInstance = runtime;
+      setPythonStatus('Python ' + version + ' آماده است', 'ready');
+      return runtime;
+    })().catch(error => {
+      pyodidePromise = null;
+      setPythonStatus('خطا در راه‌اندازی Python', '');
+      throw error;
+    });
+  }
+  return pyodidePromise;
+}
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function formatNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toLocaleString('en-US', {maximumFractionDigits:2}) : '—';
+}
+function renderTable(id, rows) {
+  const table = $(id);
+  if (!rows || !rows.length) {
+    table.innerHTML = '<tbody><tr><td>موردی برای نمایش وجود ندارد</td></tr></tbody>';
+    return;
+  }
+  const columns = Object.keys(rows[0]);
+  const head = '<thead><tr>' + columns.map(name => '<th>' + escapeHtml(name.replaceAll('_',' ')) + '</th>').join('') + '</tr></thead>';
+  const body = '<tbody>' + rows.map(row => '<tr>' + columns.map(name => {
+    const value = row[name];
+    const numeric = typeof value === 'number';
+    return '<td class="' + (numeric ? 'num' : '') + '">' + (numeric ? formatNumber(value) : escapeHtml(value)) + '</td>';
+  }).join('') + '</tr>').join('') + '</tbody>';
+  table.innerHTML = head + body;
+}
+function exportWorkbook(rows, filename, sheetName='گزارش') {
+  if (!rows || !rows.length) { alert('داده‌ای برای خروجی وجود ندارد.'); return; }
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+  XLSX.writeFile(workbook, filename);
+}
+function renderAnalysis(data) {
+  lastAnalysis = data;
+  const cards = [
+    ['کل فاکتورهای فایل', data.invoice_count_total],
+    ['فاکتورهای محاسبه‌شده', data.computed_invoice_count],
+    ['فاکتورهای نیازمند بررسی', data.issue_invoice_count],
+    ['فاکتورهای برگشت / منفی', data.negative_invoice_count],
+    ['فروش نهایی قابل محاسبه', formatNumber(data.sales_total) + ' ریال'],
+    ['مجموع کارمزد', formatNumber(data.fee_total) + ' ریال'],
+    ['مجموع مبنای پورسانت', formatNumber(data.commission_base_total) + ' ریال'],
+    ['کل پورسانت کارکنان', formatNumber(data.commission_total) + ' ریال'],
+    ['روش‌های پرداخت شناسایی‌شده', data.rates_loaded]
+  ];
+  $('stats').innerHTML = cards.map(([label,value]) => '<div class="stat"><small>' + escapeHtml(label) + '</small><strong>' + escapeHtml(value) + '</strong></div>').join('');
+  $('issueCount').textContent = formatNumber(data.issue_invoice_count) + ' مورد';
+  renderTable('staffTable', data.staff);
+  renderTable('issuesTable', data.issues);
+  renderTable('invoiceTable', data.invoices);
+  $('results').classList.remove('hidden');
+}
+function runPythonAnalysis() {
+  if (!pyodideInstance) throw new Error('موتور Python هنوز آماده نیست.');
+  const rate = Number($('commissionRate').value);
+  if (!Number.isFinite(rate) || rate < 0) throw new Error('درصد پورسانت باید عددی معتبر و صفر یا بیشتر باشد.');
+  pyodideInstance.globals.set('commission_percent_js', rate);
+  pyodideInstance.globals.set('month_filter_js', $('month').value);
+  const resultJson = pyodideInstance.runPython('analyze_workbooks_json(sales_rows_json, rates_rows_json, commission_percent_js, month_filter_js)');
+  const result = JSON.parse(resultJson);
+  renderAnalysis(result);
+  return result;
+}
+$('run').addEventListener('click', async () => {
+  const salesFile = $('salesFile').files[0];
+  const ratesFile = $('ratesFile').files[0];
+  if (!salesFile || !ratesFile) { setStatus('لطفاً هر دو فایل اکسل را انتخاب کن.', 'error'); return; }
+  $('run').disabled = true;
+  setStatus('در حال خواندن فایل‌های اکسل...');
+  try {
+    const [salesRows, ratesRows] = await Promise.all([readWorkbook(salesFile), readWorkbook(ratesFile)]);
+    setStatus('در حال راه‌اندازی موتور تحلیل Python...');
+    const runtime = await getPythonEngine();
+    runtime.globals.set('sales_rows_json', JSON.stringify(salesRows));
+    runtime.globals.set('rates_rows_json', JSON.stringify(ratesRows));
+    runtime.globals.set('commission_percent_js', Number($('commissionRate').value || 1));
+    runtime.globals.set('month_filter_js', 'all');
+    const firstJson = runtime.runPython('analyze_workbooks_json(sales_rows_json, rates_rows_json, commission_percent_js, month_filter_js)');
+    const firstResult = JSON.parse(firstJson);
+    $('month').innerHTML = '<option value="all">همه ماه‌ها</option>' + firstResult.months.map(month => '<option value="' + escapeHtml(month) + '">' + escapeHtml(month) + '</option>').join('');
+    $('month').value = 'all';
+    renderAnalysis(firstResult);
+    setStatus(formatNumber(firstResult.invoice_count_total) + ' فاکتور بررسی شد؛ ' + formatNumber(firstResult.computed_invoice_count) + ' فاکتور محاسبه و ' + formatNumber(firstResult.issue_invoice_count) + ' فاکتور برای بررسی جدا شد.', 'ok');
+  } catch (error) {
+    console.error(error);
+    setStatus('خطا در تحلیل: ' + (error && error.message ? error.message : String(error)), 'error');
+  } finally { $('run').disabled = false; }
+});
+$('month').addEventListener('change', () => { try { renderAnalysis(runPythonAnalysis()); } catch (error) { setStatus(error.message, 'error'); } });
+$('commissionRate').addEventListener('change', () => { if (!pyodideInstance) return; try { renderAnalysis(runPythonAnalysis()); } catch (error) { setStatus(error.message, 'error'); } });
+$('exportStaff').addEventListener('click', () => exportWorkbook(lastAnalysis?.staff, 'ventas-commission-by-employee.xlsx', 'پورسانت کارکنان'));
+$('exportIssues').addEventListener('click', () => exportWorkbook(lastAnalysis?.issues, 'ventas-invoice-issues.xlsx', 'فاکتورهای نیازمند بررسی'));
+$('exportInvoices').addEventListener('click', () => exportWorkbook(lastAnalysis?.invoices, 'ventas-invoice-details.xlsx', 'جزئیات فاکتورها'));
+$('reset').addEventListener('click', () => {
+  $('salesFile').value = ''; $('ratesFile').value = ''; $('results').classList.add('hidden');
+  $('month').innerHTML = '<option value="all">همه ماه‌ها</option>'; $('commissionRate').value = '1';
+  lastAnalysis = null;
+  if (pyodideInstance) { pyodideInstance.globals.set('sales_rows_json', '[]'); pyodideInstance.globals.set('rates_rows_json', '[]'); }
+  setStatus('اطلاعات این نوبت پاک شد.');
+});
+</script>
+</body>
+</html>
