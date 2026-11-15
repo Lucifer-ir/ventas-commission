@@ -42,7 +42,8 @@ def parse_invoices(rows):
             "date": _text(_cell(header, 1)),
             "number": _text(_cell(header, 7)),
             "customer": _text(_cell(header, 11)),
-            "items": [], "payments": [], "problems": []
+            "items": [], "payments": [], "adjustments": [], "amount_estimate": None,
+            "amount_inferred": False, "problems": []
         }
         payment_at = next((i for i, row in enumerate(block)
                            if _text(_cell(row, 0)) == "اطلاعات پرداخت+"), None)
@@ -54,8 +55,12 @@ def parse_invoices(rows):
                 "agent": agent, "amount": amount, "product": _text(_cell(row, 14)),
                 "quantity": _num(_cell(row, 12)), "unit_price": _num(_cell(row, 13))
             })
-            if amount is None: invoice["problems"].append("مبلغ نهایی یک یا چند ردیف کالا خالی یا نامعتبر است")
             if not agent: invoice["problems"].append("نام مامور فروش در یک یا چند ردیف خالی است")
+        for row in product_rows:
+            adjustment_amount = _num(_cell(row, 0))
+            adjustment_label = _text(_cell(row, 1))
+            if adjustment_amount is not None and adjustment_amount != 0 and adjustment_label:
+                invoice["adjustments"].append({"amount": adjustment_amount, "description": adjustment_label})
         if payment_at is None:
             invoice["problems"].append("بخش اطلاعات پرداخت وجود ندارد")
         else:
@@ -68,6 +73,41 @@ def parse_invoices(rows):
                     invoice["problems"].append("مبلغ یکی از روش‌های پرداخت خالی یا نامعتبر است")
                 else:
                     invoice["payments"].append({"method": method, "amount": amount})
+        # Reconstruct missing item totals only when unit prices plus signed
+        # invoice adjustments reconcile exactly to recorded payment total.
+        # Blank quantity means one item per exported product row; payment
+        # reconciliation is the guard against an unsafe assumption.
+        if invoice["items"] and all(item["amount"] is None for item in invoice["items"]):
+            if all(item["unit_price"] is not None for item in invoice["items"]):
+                gross_lines = []
+                for item in invoice["items"]:
+                    qty = item["quantity"] if item["quantity"] is not None else 1.0
+                    gross_lines.append(item["unit_price"] * qty)
+                gross_total = sum(gross_lines)
+                adjustment_total = sum(x["amount"] for x in invoice["adjustments"])
+                estimate = gross_total + adjustment_total
+                paid_total = sum(x["amount"] for x in invoice["payments"])
+                invoice["amount_estimate"] = {
+                    "gross": gross_total, "adjustments": adjustment_total,
+                    "estimated_total": estimate, "payment_total": paid_total,
+                    "difference": estimate - paid_total
+                }
+                if gross_total > 0 and abs(estimate - paid_total) <= 1:
+                    for item, gross in zip(invoice["items"], gross_lines):
+                        item["amount"] = gross + adjustment_total * (gross / gross_total)
+                    invoice["amount_inferred"] = True
+                else:
+                    invoice["problems"].append(
+                        "مبلغ نهایی کالا در فایل خالی است؛ جمع قیمت واحدها "
+                        f"{gross_total:,.0f}، جمع تعدیلات فاکتور {adjustment_total:,.0f}، "
+                        f"مبلغ برآوردی پس از تعدیلات {estimate:,.0f} و جمع پرداخت ثبت‌شده "
+                        f"{paid_total:,.0f} است؛ اختلاف {estimate-paid_total:,.0f} ریال است. "
+                        "به‌دلیل عدم تطبیق، مبلغ خودکار ثبت نشد."
+                    )
+            else:
+                invoice["problems"].append("مبلغ نهایی کالا خالی است و حداقل یک قیمت واحد نیز ثبت نشده؛ مبلغ قابل استنباط نیست")
+        elif any(item["amount"] is None for item in invoice["items"]):
+            invoice["problems"].append("مبلغ نهایی بعضی ردیف‌های کالا خالی است؛ فاکتور برای جلوگیری از محاسبه ناقص نیاز به بررسی دارد")
         if not invoice["items"]: invoice["problems"].append("هیچ ردیف کالایی شناسایی نشد")
         if not invoice["payments"]: invoice["problems"].append("هیچ روش پرداخت معتبری ثبت نشده است")
         if not invoice["date"]: invoice["problems"].append("تاریخ فاکتور ثبت نشده است")
@@ -118,12 +158,15 @@ def analyze_workbooks(sales_rows, rate_rows, commission_percent=1.0, month_filte
                 "تاریخ":inv["date"],"شماره_فاکتور":inv["number"],"مشتری":inv["customer"],
                 "نوع_تراکنش":transaction_type,"فروش_نهایی_کالاها":_round(item_total),
                 "جمع_پرداخت":_round(payment_total),"کارمزد_محاسبه‌شده":_round(fee),
+                "مبلغ_برآوردی_از_قیمت_واحد":(_round(inv["amount_estimate"]["estimated_total"]) if inv["amount_estimate"] else None),
+                "اختلاف_برآورد_با_پرداخت":(_round(inv["amount_estimate"]["difference"]) if inv["amount_estimate"] else None),
                 "علت_بررسی":" | ".join(problems)
             })
             details.append({
                 "تاریخ":inv["date"],"شماره_فاکتور":inv["number"],"مشتری":inv["customer"],
                 "نوع_تراکنش":transaction_type,"فروش_نهایی_کالاها":_round(item_total),
                 "جمع_پرداخت":_round(payment_total),"کارمزد":_round(fee),
+                "مبلغ_برآوردی":(_round(inv["amount_estimate"]["estimated_total"]) if inv["amount_estimate"] else None),
                 "مبنای_پورسانت":0,"پورسانت":0,"وضعیت":"نیازمند بررسی"
             })
             continue
@@ -150,6 +193,7 @@ def analyze_workbooks(sales_rows, rate_rows, commission_percent=1.0, month_filte
             "نوع_تراکنش":transaction_type,"فروش_نهایی_کالاها":_round(item_total),
             "جمع_پرداخت":_round(payment_total),"کارمزد":_round(fee),
             "مبنای_پورسانت":_round(invoice_base),"پورسانت":_round(invoice_commission),
+            "مبلغ_نهایی_استنباط_شده":"بله - با تطبیق پرداخت" if inv["amount_inferred"] else "خیر",
             "وضعیت":"محاسبه شد"
         })
     staff_rows = []
