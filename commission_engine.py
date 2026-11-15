@@ -31,7 +31,33 @@ def parse_rates(rows):
         rates[_key(name)] = 0.0 if value is None else value
     return rates
 
-def parse_invoices(rows):
+def _payment_markup_match(payments, rates, product_total, payment_total, tolerance_pp=0.5):
+    """Recognize a payment surcharge close to the fee-sheet rate."""
+    if product_total <= 0 or payment_total <= product_total:
+        return None
+    valid = []
+    for payment in payments:
+        key = _key(payment["method"])
+        rate = rates.get(key)
+        if rate is not None and rate > 0 and payment["amount"] > 0:
+            valid.append((payment["amount"], rate))
+    paid = sum(amount for amount, _ in valid)
+    if paid <= 0:
+        return None
+    expected = sum(amount * rate for amount, rate in valid) / paid
+    observed = (payment_total / product_total - 1) * 100.0
+    delta = abs(observed - expected)
+    if delta <= tolerance_pp:
+        return {
+            "expected_rate": expected, "observed_rate": observed,
+            "delta_pp": delta, "tolerance_pp": tolerance_pp,
+            "expected_payment_total": product_total * (1 + expected / 100.0),
+            "difference_from_expected_payment": payment_total - product_total * (1 + expected / 100.0)
+        }
+    return None
+
+
+def parse_invoices(rows, rates=None):
     rows = rows or []
     starts = [i for i, row in enumerate(rows) if _text(_cell(row, 0)) == "اطلاعات تراکنش"]
     result = []
@@ -43,7 +69,8 @@ def parse_invoices(rows):
             "number": _text(_cell(header, 7)),
             "customer": _text(_cell(header, 11)),
             "items": [], "payments": [], "adjustments": [], "amount_estimate": None,
-            "amount_inferred": False, "zero_cash_inferred": False, "problems": []
+            "amount_inferred": False, "zero_cash_inferred": False, "markup_match": None,
+            "blank_quantity_count": 0, "amount_inferred_reason": "", "problems": []
         }
         payment_at = next((i for i, row in enumerate(block)
                            if _text(_cell(row, 0)) == "اطلاعات پرداخت+"), None)
@@ -73,14 +100,15 @@ def parse_invoices(rows):
                     invoice["problems"].append("مبلغ یکی از روش‌های پرداخت خالی یا نامعتبر است")
                 else:
                     invoice["payments"].append({"method": method, "amount": amount})
-        # Reconstruct missing item totals only when unit prices plus signed
-        # invoice adjustments reconcile exactly to recorded payment total.
-        # Blank quantity means one item per exported product row; payment
-        # reconciliation is the guard against an unsafe assumption.
+        # Reconstruct missing product totals from unit price x quantity plus
+        # signed invoice adjustments. Blank quantities are treated as one and
+        # recorded explicitly in the detail report.
         if invoice["items"] and all(item["amount"] is None for item in invoice["items"]):
             if all(item["unit_price"] is not None for item in invoice["items"]):
                 gross_lines = []
                 for item in invoice["items"]:
+                    if item["quantity"] is None:
+                        invoice["blank_quantity_count"] += 1
                     qty = item["quantity"] if item["quantity"] is not None else 1.0
                     gross_lines.append(item["unit_price"] * qty)
                 gross_total = sum(gross_lines)
@@ -97,16 +125,25 @@ def parse_invoices(rows):
                     and any(_key(payment["method"]) == _key("نقد") and payment["amount"] == 0
                             for payment in invoice["payments"])
                 )
+                invoice["markup_match"] = _payment_markup_match(
+                    invoice["payments"], rates or {}, estimate, paid_total
+                )
                 # Some source exports use a zero-value cash line as a
                 # placeholder. In this exact case, derive the sale from unit
                 # price and signed adjustments, rather than from payment zero.
                 if gross_total > 0 and (
                     abs(estimate - paid_total) <= 1 or (zero_cash_entry and estimate > 0)
+                    or invoice["markup_match"] is not None
                 ):
                     for item, gross in zip(invoice["items"], gross_lines):
                         item["amount"] = gross + adjustment_total * (gross / gross_total)
                     invoice["amount_inferred"] = True
                     invoice["zero_cash_inferred"] = zero_cash_entry and abs(estimate - paid_total) > 1
+                    invoice["amount_inferred_reason"] = (
+                        "تطبیق با نرخ افزایش روش پرداخت" if invoice["markup_match"]
+                        else "ردیف نقد با مبلغ صفر" if invoice["zero_cash_inferred"]
+                        else "تطبیق مبلغ پرداخت"
+                    )
                 else:
                     invoice["problems"].append(
                         "مبلغ نهایی کالا در فایل خالی است؛ جمع قیمت واحدها "
@@ -133,7 +170,8 @@ def analyze_workbooks(sales_rows, rate_rows, commission_percent=1.0, month_filte
     pct = _num(commission_percent)
     if pct is None or pct < 0:
         raise ValueError("درصد پورسانت باید عددی بزرگ‌تر یا مساوی صفر باشد")
-    invoices, rates = parse_invoices(sales_rows), parse_rates(rate_rows)
+    rates = parse_rates(rate_rows)
+    invoices = parse_invoices(sales_rows, rates)
     months = sorted({x["date"][:7] for x in invoices if len(x["date"]) >= 7})
     selected = [x for x in invoices if month_filter == "all" or x["date"].startswith(month_filter)]
     staff = defaultdict(lambda: {"sales":0.0,"fee":0.0,"base":0.0,"commission":0.0,"lines":0,"invoices":set()})
@@ -155,7 +193,10 @@ def analyze_workbooks(sales_rows, rate_rows, commission_percent=1.0, month_filte
                 if abs(pay["amount"]) > 0: unknown.append(pay["method"])
             else:
                 fee += pay["amount"] * rates[k] / 100.0
-        if inv["items"] and abs(item_total - payment_total) > 1 and not inv["zero_cash_inferred"]:
+        if not inv["markup_match"]:
+            inv["markup_match"] = _payment_markup_match(inv["payments"], rates, item_total, payment_total)
+        if (inv["items"] and abs(item_total - payment_total) > 1
+                and not inv["zero_cash_inferred"] and not inv["markup_match"]):
             problems.append(f"جمع مبلغ نهایی کالاها ({item_total:,.0f}) با جمع پرداخت‌ها ({payment_total:,.0f}) برابر نیست")
         if unknown:
             unknown_all.update(unknown)
@@ -204,8 +245,13 @@ def analyze_workbooks(sales_rows, rate_rows, commission_percent=1.0, month_filte
             "نوع_تراکنش":transaction_type,"فروش_نهایی_کالاها":_round(item_total),
             "جمع_پرداخت":_round(payment_total),"کارمزد":_round(fee),
             "مبنای_پورسانت":_round(invoice_base),"پورسانت":_round(invoice_commission),
-            "مبلغ_نهایی_استنباط_شده":"بله - از قیمت واحد و تخفیف" if inv["amount_inferred"] else "خیر",
+            "مبلغ_نهایی_استنباط_شده":("بله - " + inv.get("amount_inferred_reason", "بازسازی از قیمت واحد")) if inv["amount_inferred"] else "خیر",
+            "نرخ_افزایش_روش_پرداخت":_round(inv["markup_match"]["expected_rate"]) if inv["markup_match"] else None,
+            "افزایش_مشاهده‌شده_درصد":_round(inv["markup_match"]["observed_rate"]) if inv["markup_match"] else None,
+            "اختلاف_با_نرخ_مجاز_واحد_درصد":_round(inv["markup_match"]["delta_pp"]) if inv["markup_match"] else None,
+            "تعداد_خالی_فرض‌شده_یک":inv["blank_quantity_count"],
             "هشدار_پرداخت":"روش نقد با مبلغ صفر ثبت شده؛ فروش از قیمت واحد و تخفیف محاسبه شد" if inv["zero_cash_inferred"] else "",
+            "وضعیت_تطبیق_اقساط":"تطبیق با نرخ روش پرداخت تایید شد" if inv["markup_match"] else "",
             "وضعیت":"محاسبه شد"
         })
     staff_rows = []
@@ -222,6 +268,7 @@ def analyze_workbooks(sales_rows, rate_rows, commission_percent=1.0, month_filte
         "invoice_count_filtered":len(selected),"computed_invoice_count":computed,
         "issue_invoice_count":len(issues),"negative_invoice_count":negative_count,
         "zero_cash_inferred_count":sum(1 for x in selected if x["zero_cash_inferred"]),
+        "installment_markup_reconciled_count":sum(1 for x in selected if x["markup_match"]),
         "sales_total":_round(sales_total),"fee_total":_round(fee_total),
         "commission_base_total":_round(base_total),
         "commission_total":_round(sum(x["پورسانت"] for x in staff_rows)),
