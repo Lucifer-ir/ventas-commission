@@ -43,7 +43,7 @@ def parse_invoices(rows):
             "number": _text(_cell(header, 7)),
             "customer": _text(_cell(header, 11)),
             "items": [], "payments": [], "adjustments": [], "amount_estimate": None,
-            "amount_inferred": False, "problems": []
+            "amount_inferred": False, "zero_cash_inferred": False, "problems": []
         }
         payment_at = next((i for i, row in enumerate(block)
                            if _text(_cell(row, 0)) == "اطلاعات پرداخت+"), None)
@@ -92,10 +92,21 @@ def parse_invoices(rows):
                     "estimated_total": estimate, "payment_total": paid_total,
                     "difference": estimate - paid_total
                 }
-                if gross_total > 0 and abs(estimate - paid_total) <= 1:
+                zero_cash_entry = (
+                    paid_total == 0
+                    and any(_key(payment["method"]) == _key("نقد") and payment["amount"] == 0
+                            for payment in invoice["payments"])
+                )
+                # Some source exports use a zero-value cash line as a
+                # placeholder. In this exact case, derive the sale from unit
+                # price and signed adjustments, rather than from payment zero.
+                if gross_total > 0 and (
+                    abs(estimate - paid_total) <= 1 or (zero_cash_entry and estimate > 0)
+                ):
                     for item, gross in zip(invoice["items"], gross_lines):
                         item["amount"] = gross + adjustment_total * (gross / gross_total)
                     invoice["amount_inferred"] = True
+                    invoice["zero_cash_inferred"] = zero_cash_entry and abs(estimate - paid_total) > 1
                 else:
                     invoice["problems"].append(
                         "مبلغ نهایی کالا در فایل خالی است؛ جمع قیمت واحدها "
@@ -144,7 +155,7 @@ def analyze_workbooks(sales_rows, rate_rows, commission_percent=1.0, month_filte
                 if abs(pay["amount"]) > 0: unknown.append(pay["method"])
             else:
                 fee += pay["amount"] * rates[k] / 100.0
-        if inv["items"] and abs(item_total - payment_total) > 1:
+        if inv["items"] and abs(item_total - payment_total) > 1 and not inv["zero_cash_inferred"]:
             problems.append(f"جمع مبلغ نهایی کالاها ({item_total:,.0f}) با جمع پرداخت‌ها ({payment_total:,.0f}) برابر نیست")
         if unknown:
             unknown_all.update(unknown)
@@ -193,7 +204,8 @@ def analyze_workbooks(sales_rows, rate_rows, commission_percent=1.0, month_filte
             "نوع_تراکنش":transaction_type,"فروش_نهایی_کالاها":_round(item_total),
             "جمع_پرداخت":_round(payment_total),"کارمزد":_round(fee),
             "مبنای_پورسانت":_round(invoice_base),"پورسانت":_round(invoice_commission),
-            "مبلغ_نهایی_استنباط_شده":"بله - با تطبیق پرداخت" if inv["amount_inferred"] else "خیر",
+            "مبلغ_نهایی_استنباط_شده":"بله - از قیمت واحد و تخفیف" if inv["amount_inferred"] else "خیر",
+            "هشدار_پرداخت":"روش نقد با مبلغ صفر ثبت شده؛ فروش از قیمت واحد و تخفیف محاسبه شد" if inv["zero_cash_inferred"] else "",
             "وضعیت":"محاسبه شد"
         })
     staff_rows = []
@@ -209,6 +221,7 @@ def analyze_workbooks(sales_rows, rate_rows, commission_percent=1.0, month_filte
         "months":months,"rates_loaded":len(rates),"invoice_count_total":len(invoices),
         "invoice_count_filtered":len(selected),"computed_invoice_count":computed,
         "issue_invoice_count":len(issues),"negative_invoice_count":negative_count,
+        "zero_cash_inferred_count":sum(1 for x in selected if x["zero_cash_inferred"]),
         "sales_total":_round(sales_total),"fee_total":_round(fee_total),
         "commission_base_total":_round(base_total),
         "commission_total":_round(sum(x["پورسانت"] for x in staff_rows)),
