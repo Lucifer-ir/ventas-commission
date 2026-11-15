@@ -130,7 +130,7 @@ tbody tr:hover{background:#162740}
  <div class="panel" id="paymentsSection"><div class="sectionhead"><h2 class="sectiontitle">تحلیل روش‌های پرداخت</h2><span class="tag">نرخ، مبلغ و کارمزد</span></div><div class="tablewrap"><table id="paymentTable"></table></div><div class="actions"><button class="btn secondary" id="exportPayments">دریافت اکسل روش‌های پرداخت</button></div></div>
  <div class="panel"><div class="sectionhead"><h2 class="sectiontitle">۳. جمع پورسانت کارکنان</h2><span class="tag">گزارش ماه انتخاب‌شده</span></div><div class="tablewrap"><table id="staffTable"></table></div><div class="actions"><button class="btn" id="exportStaff">خروجی اکسل کارکنان</button></div></div>
  <div class="panel issue-panel" id="issuesSection"><div class="sectionhead"><h2 class="sectiontitle">فاکتورهای نیازمند بررسی</h2><span class="tag" id="issueCount">۰ مورد</span></div><div class="note" style="margin-bottom:12px">فاکتورهایی که اطلاعات لازم برای محاسبه آن‌ها ناقص است در این بخش نمایش داده می‌شوند. اگر مبلغ نهایی کالا خالی باشد، برنامه مبلغ را از «قیمت واحد × تعداد + تعدیلات (مثل تخفیف)» بازسازی می‌کند. در فاکتورهایی که ردیف نقد با مبلغ صفر ثبت شده، صفر به‌عنوان مبلغ فروش در نظر گرفته نمی‌شود؛ مبلغ کالا پس از کسر تخفیف مبنای پورسانت خواهد بود و هشدار صفر بودن پرداخت در جزئیات فاکتور باقی می‌ماند.</div><div class="tablewrap"><table id="issuesTable"></table></div><div class="actions"><button class="btn secondary" id="exportIssues">خروجی اکسل مغایرت‌ها</button></div></div>
- <div class="panel" id="invoiceSection"><div class="sectionhead"><h2 class="sectiontitle">جزئیات و گردش فاکتورها</h2><span class="tag">فاکتورهای محاسبه‌شده و بررسی‌نشده</span></div><div class="tablewrap"><table id="invoiceTable"></table></div><div class="actions"><button class="btn secondary" id="exportInvoices">خروجی اکسل جزئیات فاکتورها</button></div></div>
+ <div class="panel" id="invoiceSection"><div class="sectionhead"><h2 class="sectiontitle">جزئیات و گردش فاکتورها</h2><span class="tag">فاکتورهای محاسبه‌شده و بررسی‌نشده</span></div><div class="toolbar"><input id="tableSearch" type="search" placeholder="جست‌وجوی شماره فاکتور، مشتری، کالا یا مامور فروش"><select id="statusFilter"><option value="all">همه وضعیت‌ها</option><option value="محاسبه شد">محاسبه‌شده</option><option value="نیازمند بررسی">نیازمند بررسی</option></select></div><div class="tablewrap"><table id="invoiceTable"></table></div><div class="actions"><button class="btn secondary" id="exportInvoices">خروجی اکسل جزئیات فاکتورها</button></div></div>
 </section>
 <div class="footer">VENTAS COMMISSION · Built for Sales Intelligence · تحلیل Python داخل مرورگر</div>
 </div></div>
@@ -218,25 +218,96 @@ function exportWorkbook(rows, filename, sheetName='گزارش') {
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
   XLSX.writeFile(workbook, filename);
 }
+let chartInstances = {};
+
+function destroyCharts() {
+  Object.values(chartInstances).forEach(chart => { try { chart.destroy(); } catch (_) {} });
+  chartInstances = {};
+}
+function chartTheme() {
+  return {
+    color:'#9aacc3',
+    borderColor:'#2a3b52',
+    font:{family:'Tahoma, Arial, sans-serif'}
+  };
+}
+function renderCharts(data) {
+  if (typeof Chart === 'undefined') return;
+  destroyCharts();
+  Chart.defaults.color = '#9aacc3';
+  Chart.defaults.font.family = 'Tahoma, Arial, sans-serif';
+  Chart.defaults.font.size = 10;
+  const monthly = data.monthly || [];
+  chartInstances.monthly = new Chart($('monthlyChart'), {
+    type:'line',
+    data:{
+      labels:monthly.map(x=>x['ماه']),
+      datasets:[
+        {label:'فروش کالا',data:monthly.map(x=>x['فروش']),borderColor:'#60a5fa',backgroundColor:'#60a5fa1c',fill:true,tension:.35,borderWidth:2,pointRadius:3},
+        {label:'مبلغ پرداختی',data:monthly.map(x=>x['پرداخت']),borderColor:'#a78bfa',backgroundColor:'#a78bfa10',fill:false,tension:.35,borderWidth:2,pointRadius:3}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{position:'bottom',labels:{usePointStyle:true,boxWidth:7,padding:18}},
+        tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+formatNumber(ctx.raw)+' ریال'}}},
+      scales:{x:{grid:{display:false}},y:{grid:{color:'#22334a'},ticks:{callback:v=>formatCompact(v)}}}}
+  });
+  const staff = (data.staff||[]).slice(0,10);
+  chartInstances.staff = new Chart($('staffChart'),{
+    type:'bar',
+    data:{labels:staff.map(x=>x['کارمند']),datasets:[{label:'پورسانت (ریال)',data:staff.map(x=>x['پورسانت']),backgroundColor:['#60a5fa','#8b5cf6','#22c55e','#f59e0b','#38bdf8','#f472b6','#a3e635','#c084fc','#2dd4bf','#fb7185'],borderRadius:7,borderSkipped:false}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>formatNumber(ctx.raw)+' ریال'}}},
+      scales:{x:{grid:{color:'#22334a'},ticks:{callback:v=>formatCompact(v)}},y:{grid:{display:false}}}}
+  });
+  const methods=(data.payment_methods||[]).filter(x=>x['مبلغ_پرداخت']>0);
+  chartInstances.payments = new Chart($('paymentChart'),{
+    type:'doughnut',
+    data:{labels:methods.map(x=>x['روش_پرداخت']),datasets:[{data:methods.map(x=>x['مبلغ_پرداخت']),backgroundColor:['#60a5fa','#8b5cf6','#34d399','#f59e0b','#f472b6','#22d3ee','#a3e635','#fb7185'],borderColor:'#101d30',borderWidth:3,hoverOffset:7}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'68%',plugins:{legend:{position:'bottom',labels:{usePointStyle:true,boxWidth:7,padding:14}},tooltip:{callbacks:{label:ctx=>ctx.label+': '+formatNumber(ctx.raw)+' ریال'}}}}
+  });
+}
+function formatCompact(value) {
+  const n=Number(value)||0;
+  if (Math.abs(n)>=1e9) return (n/1e9).toFixed(1)+'B';
+  if (Math.abs(n)>=1e6) return (n/1e6).toFixed(0)+'M';
+  if (Math.abs(n)>=1e3) return (n/1e3).toFixed(0)+'K';
+  return String(n);
+}
+function filteredInvoices() {
+  if (!lastAnalysis) return [];
+  const query=($('tableSearch')?.value||'').trim().toLowerCase();
+  const status=$('statusFilter')?.value||'all';
+  return (lastAnalysis.invoices||[]).filter(row=>{
+    if(status!=='all' && row['وضعیت']!==status) return false;
+    if(!query) return true;
+    return Object.values(row).some(value=>String(value??'').toLowerCase().includes(query));
+  });
+}
+function renderInvoiceTable() {
+  if (lastAnalysis) renderTable('invoiceTable',filteredInvoices());
+}
 function renderAnalysis(data) {
   lastAnalysis = data;
   const cards = [
-    ['کل فاکتورهای فایل', data.invoice_count_total],
-    ['فاکتورهای محاسبه‌شده', data.computed_invoice_count],
-    ['فاکتورهای نیازمند بررسی', data.issue_invoice_count],
-    ['فاکتورهای برگشت / منفی', data.negative_invoice_count],
-    ['فاکتورهای با مبلغ بازسازی‌شده', data.zero_cash_inferred_count || 0],
-    ['فروش نهایی قابل محاسبه', formatNumber(data.sales_total) + ' ریال'],
-    ['مجموع کارمزد', formatNumber(data.fee_total) + ' ریال'],
-    ['مجموع مبنای پورسانت', formatNumber(data.commission_base_total) + ' ریال'],
-    ['کل پورسانت کارکنان', formatNumber(data.commission_total) + ' ریال'],
-    ['روش‌های پرداخت شناسایی‌شده', data.rates_loaded]
+    ['تعداد کل فاکتورها',data.invoice_count_total,'فایل اصلی'],
+    ['فاکتورهای محاسبه‌شده',data.computed_invoice_count,'محاسبه قطعی'],
+    ['نیازمند بررسی',data.issue_invoice_count,'فاکتورهای باز'],
+    ['فروش نهایی کالاها',formatNumber(data.sales_total)+' ریال','پس از تخفیف'],
+    ['مجموع پرداخت مشتریان',formatNumber(data.payment_total||0)+' ریال','شامل پرداخت اقساطی'],
+    ['کارمزد روش‌های پرداخت',formatNumber(data.fee_total)+' ریال','طبق فایل نرخ‌ها'],
+    ['مبنای محاسبه پورسانت',formatNumber(data.commission_base_total)+' ریال','پس از کسر کارمزد'],
+    ['پورسانت قابل پرداخت',formatNumber(data.commission_total)+' ریال','درصد انتخاب‌شده'],
+    ['میانگین مبلغ هر فاکتور',formatNumber(data.average_invoice||0)+' ریال','بر اساس فاکتورهای محاسبه‌شده'],
+    ['تطبیق افزایش اقساطی',data.installment_markup_reconciled_count||0,'نرخ نزدیک به درصد تعریف‌شده']
   ];
-  $('stats').innerHTML = cards.map(([label,value]) => '<div class="stat"><small>' + escapeHtml(label) + '</small><strong>' + escapeHtml(value) + '</strong></div>').join('');
-  $('issueCount').textContent = formatNumber(data.issue_invoice_count) + ' مورد';
-  renderTable('staffTable', data.staff);
-  renderTable('issuesTable', data.issues);
-  renderTable('invoiceTable', data.invoices);
+  $('stats').innerHTML = cards.map(([label,value,foot]) => '<div class="stat"><small>'+escapeHtml(label)+'</small><strong>'+escapeHtml(value)+'</strong><div class="stat-foot">'+escapeHtml(foot||'')+'</div></div>').join('');
+  $('issueCount').textContent = formatNumber(data.issue_invoice_count)+' مورد';
+  $('reportPeriod').textContent = $('month').value==='all'?'تمام دوره‌ها':'ماه '+$('month').value;
+  renderTable('staffTable',data.staff);
+  renderTable('paymentTable',data.payment_methods||[]);
+  renderTable('issuesTable',data.issues);
+  renderInvoiceTable();
+  renderCharts(data);
   $('results').classList.remove('hidden');
 }
 function runPythonAnalysis() {
@@ -280,6 +351,9 @@ $('commissionRate').addEventListener('change', () => { if (!pyodideInstance) ret
 $('exportStaff').addEventListener('click', () => exportWorkbook(lastAnalysis?.staff, 'ventas-commission-by-employee.xlsx', 'پورسانت کارکنان'));
 $('exportIssues').addEventListener('click', () => exportWorkbook(lastAnalysis?.issues, 'ventas-invoice-issues.xlsx', 'فاکتورهای نیازمند بررسی'));
 $('exportInvoices').addEventListener('click', () => exportWorkbook(lastAnalysis?.invoices, 'ventas-invoice-details.xlsx', 'جزئیات فاکتورها'));
+$('exportPayments').addEventListener('click', () => exportWorkbook(lastAnalysis?.payment_methods, 'ventas-payment-methods.xlsx', 'روش‌های پرداخت'));
+$('tableSearch').addEventListener('input', renderInvoiceTable);
+$('statusFilter').addEventListener('change', renderInvoiceTable);
 $('reset').addEventListener('click', () => {
   $('salesFile').value = ''; $('ratesFile').value = ''; $('results').classList.add('hidden');
   $('month').innerHTML = '<option value="all">همه ماه‌ها</option>'; $('commissionRate').value = '1';
