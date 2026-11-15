@@ -39,7 +39,7 @@
   <div class="stats" id="stats"></div>
  </div>
  <div class="panel"><div class="sectionhead"><h2 class="sectiontitle">۳. جمع پورسانت کارکنان</h2><span class="tag">گزارش ماه انتخاب‌شده</span></div><div class="tablewrap"><table id="staffTable"></table></div><div class="actions"><button class="btn" id="exportStaff">خروجی اکسل کارکنان</button></div></div>
- <div class="panel"><div class="sectionhead"><h2 class="sectiontitle">۴. فاکتورهای نیازمند بررسی</h2><span class="tag" id="issueCount">۰ مورد</span></div><div class="note" style="margin-bottom:12px">فاکتورهایی که مبلغ کالا، مامور فروش یا روش پرداخت آن‌ها ناقص است یا جمع پرداخت با فروش نهایی تطابق ندارد، از پورسانت قطعی کنار گذاشته شده‌اند. علت هر مورد در ستون آخر آمده است.</div><div class="tablewrap"><table id="issuesTable"></table></div><div class="actions"><button class="btn secondary" id="exportIssues">خروجی اکسل مغایرت‌ها</button></div></div>
+ <div class="panel"><div class="sectionhead"><h2 class="sectiontitle">۴. فاکتورهای نیازمند بررسی</h2><span class="tag" id="issueCount">۰ مورد</span></div><div class="note" style="margin-bottom:12px">فاکتورهایی که مبلغ کالا، مامور فروش یا روش پرداخت آن‌ها ناقص است یا جمع پرداخت با فروش نهایی تطابق ندارد، از پورسانت قطعی کنار گذاشته شده‌اند. اگر مبلغ نهایی ردیف خالی باشد، Python فقط در صورت تطبیق «قیمت واحد × تعداد + تعدیلات» با جمع پرداخت، مبلغ را بازسازی می‌کند؛ در غیر این صورت مبلغ برآوردی و اختلاف برای بررسی نمایش داده می‌شود.</div><div class="tablewrap"><table id="issuesTable"></table></div><div class="actions"><button class="btn secondary" id="exportIssues">خروجی اکسل مغایرت‌ها</button></div></div>
  <div class="panel"><div class="sectionhead"><h2 class="sectiontitle">۵. جزئیات فاکتورها</h2><span class="tag">فاکتورهای محاسبه‌شده و بررسی‌نشده</span></div><div class="tablewrap"><table id="invoiceTable"></table></div><div class="actions"><button class="btn secondary" id="exportInvoices">خروجی اکسل جزئیات فاکتورها</button></div></div>
 </section>
 <div class="footer">Ventas Commission · تحلیل Python داخل مرورگر · فایل‌های اکسل شما از دستگاه خارج نمی‌شوند</div>
@@ -116,7 +116,7 @@ function renderTable(id, rows) {
   const body = '<tbody>' + rows.map(row => '<tr>' + columns.map(name => {
     const value = row[name];
     const numeric = typeof value === 'number';
-    return '<td class="' + (numeric ? 'num' : '') + '">' + (numeric ? formatNumber(value) : escapeHtml(value)) + '</td>';
+    return '<td class="' + (numeric ? 'num' : '') + '">' + (numeric ? formatNumber(value) : (value === null || value === undefined || value === '' ? '—' : escapeHtml(value))) + '</td>';
   }).join('') + '</tr>').join('') + '</tbody>';
   table.innerHTML = head + body;
 }
