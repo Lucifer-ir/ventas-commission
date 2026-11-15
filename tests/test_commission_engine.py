@@ -37,7 +37,7 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(result["computed_invoice_count"],1)
         self.assertEqual(result["sales_total"],33488000)
         self.assertEqual(result["commission_total"],334880)
-        self.assertEqual(result["invoices"][0]["مبلغ_نهایی_استنباط_شده"],"بله - با تطبیق پرداخت")
+        self.assertEqual(result["invoices"][0]["مبلغ_نهایی_استنباط_شده"],"بله - از قیمت واحد و تخفیف")
 
     def test_zero_cash_payment_uses_reconstructed_sale_and_keeps_audit_warning(self):
         header=[None]*21
