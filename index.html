@@ -125,10 +125,10 @@ tbody tr:hover{background:#162740}
   <div class="panel chart-card wide"><div class="sectionhead"><h2 class="sectiontitle">روند فروش و دریافتی ماهانه</h2><span class="tag">مقایسه مبلغ کالا و پرداخت</span></div><canvas id="monthlyChart"></canvas></div>
   <div class="panel chart-card"><div class="sectionhead"><h2 class="sectiontitle">پورسانت به تفکیک کارمند</h2><span class="tag">رتبه‌بندی</span></div><canvas id="staffChart"></canvas></div>
   <div class="panel chart-card"><div class="sectionhead"><h2 class="sectiontitle">ترکیب روش‌های پرداخت</h2><span class="tag">سهم از مبلغ پرداخت</span></div><canvas id="paymentChart"></canvas></div>
+  <div class="panel chart-card"><div class="sectionhead"><h2 class="sectiontitle">وضعیت پردازش فاکتورها</h2><span class="tag">تطبیق و مغایرت</span></div><canvas id="qualityChart"></canvas></div>
  </section>
  <div class="panel" id="staffSection"><div class="sectionhead"><h2 class="sectiontitle">عملکرد و پورسانت کارکنان</h2><span class="tag">گزارش قابل خروجی</span></div><div class="tablewrap"><table id="staffTable"></table></div><div class="actions"><button class="btn" id="exportStaff">دریافت اکسل کارکنان</button></div></div>
  <div class="panel" id="paymentsSection"><div class="sectionhead"><h2 class="sectiontitle">تحلیل روش‌های پرداخت</h2><span class="tag">نرخ، مبلغ و کارمزد</span></div><div class="tablewrap"><table id="paymentTable"></table></div><div class="actions"><button class="btn secondary" id="exportPayments">دریافت اکسل روش‌های پرداخت</button></div></div>
- <div class="panel"><div class="sectionhead"><h2 class="sectiontitle">۳. جمع پورسانت کارکنان</h2><span class="tag">گزارش ماه انتخاب‌شده</span></div><div class="tablewrap"><table id="staffTable"></table></div><div class="actions"><button class="btn" id="exportStaff">خروجی اکسل کارکنان</button></div></div>
  <div class="panel issue-panel" id="issuesSection"><div class="sectionhead"><h2 class="sectiontitle">فاکتورهای نیازمند بررسی</h2><span class="tag" id="issueCount">۰ مورد</span></div><div class="note" style="margin-bottom:12px">فاکتورهایی که اطلاعات لازم برای محاسبه آن‌ها ناقص است در این بخش نمایش داده می‌شوند. اگر مبلغ نهایی کالا خالی باشد، برنامه مبلغ را از «قیمت واحد × تعداد + تعدیلات (مثل تخفیف)» بازسازی می‌کند. در فاکتورهایی که ردیف نقد با مبلغ صفر ثبت شده، صفر به‌عنوان مبلغ فروش در نظر گرفته نمی‌شود؛ مبلغ کالا پس از کسر تخفیف مبنای پورسانت خواهد بود و هشدار صفر بودن پرداخت در جزئیات فاکتور باقی می‌ماند.</div><div class="tablewrap"><table id="issuesTable"></table></div><div class="actions"><button class="btn secondary" id="exportIssues">خروجی اکسل مغایرت‌ها</button></div></div>
  <div class="panel" id="invoiceSection"><div class="sectionhead"><h2 class="sectiontitle">جزئیات و گردش فاکتورها</h2><span class="tag">فاکتورهای محاسبه‌شده و بررسی‌نشده</span></div><div class="toolbar"><input id="tableSearch" type="search" placeholder="جست‌وجوی شماره فاکتور، مشتری، کالا یا مامور فروش"><select id="statusFilter"><option value="all">همه وضعیت‌ها</option><option value="محاسبه شد">محاسبه‌شده</option><option value="نیازمند بررسی">نیازمند بررسی</option></select></div><div class="tablewrap"><table id="invoiceTable"></table></div><div class="actions"><button class="btn secondary" id="exportInvoices">خروجی اکسل جزئیات فاکتورها</button></div></div>
 </section>
@@ -264,6 +264,11 @@ function renderCharts(data) {
     type:'doughnut',
     data:{labels:methods.map(x=>x['روش_پرداخت']),datasets:[{data:methods.map(x=>x['مبلغ_پرداخت']),backgroundColor:['#60a5fa','#8b5cf6','#34d399','#f59e0b','#f472b6','#22d3ee','#a3e635','#fb7185'],borderColor:'#101d30',borderWidth:3,hoverOffset:7}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'68%',plugins:{legend:{position:'bottom',labels:{usePointStyle:true,boxWidth:7,padding:14}},tooltip:{callbacks:{label:ctx=>ctx.label+': '+formatNumber(ctx.raw)+' ریال'}}}}
+  });
+  chartInstances.quality = new Chart($('qualityChart'),{
+    type:'doughnut',
+    data:{labels:['محاسبه‌شده','نیازمند بررسی'],datasets:[{data:[data.computed_invoice_count,data.issue_invoice_count],backgroundColor:['#34d399','#f59e0b'],borderColor:'#101d30',borderWidth:3,hoverOffset:7}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'68%',plugins:{legend:{position:'bottom',labels:{usePointStyle:true,boxWidth:7,padding:14}}}}
   });
 }
 function formatCompact(value) {
