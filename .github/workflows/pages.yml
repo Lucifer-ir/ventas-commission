@@ -37,7 +37,7 @@ jobs:
           scripts = re.findall(r"<script>(.*?)</script>", source, flags=re.S)
           if not scripts:
               raise SystemExit("No inline application script found")
-          open("/tmp/ventas-inline.js", "w", encoding="utf-8").write("\\n".join(scripts))
+          open("/tmp/ventas-inline.js", "w", encoding="utf-8").write("\n".join(scripts))
           PY
           node --check /tmp/ventas-inline.js
       - name: Configure GitHub Pages
