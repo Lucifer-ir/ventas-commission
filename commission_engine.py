@@ -220,6 +220,8 @@ def analyze_workbooks(sales_rows, rate_rows, commission_percent=1.0, month_filte
         if problems:
             issues.append({
                 "تاریخ":inv["date"],"شماره_فاکتور":inv["number"],"مشتری":inv["customer"],
+                "ماموران_فروش":"، ".join(sorted({item["agent"] for item in inv["items"] if item["agent"]})),
+                "کالاها":"، ".join(item["product"] for item in inv["items"] if item["product"]),
                 "نوع_تراکنش":transaction_type,"فروش_نهایی_کالاها":_round(item_total),
                 "جمع_پرداخت":_round(payment_total),"کارمزد_محاسبه‌شده":_round(fee),
                 "مبلغ_برآوردی_از_قیمت_واحد":(_round(inv["amount_estimate"]["estimated_total"]) if inv["amount_estimate"] else None),
@@ -228,6 +230,8 @@ def analyze_workbooks(sales_rows, rate_rows, commission_percent=1.0, month_filte
             })
             details.append({
                 "تاریخ":inv["date"],"شماره_فاکتور":inv["number"],"مشتری":inv["customer"],
+                "ماموران_فروش":"، ".join(sorted({item["agent"] for item in inv["items"] if item["agent"]})),
+                "کالاها":"، ".join(item["product"] for item in inv["items"] if item["product"]),
                 "نوع_تراکنش":transaction_type,"فروش_نهایی_کالاها":_round(item_total),
                 "جمع_پرداخت":_round(payment_total),"کارمزد":_round(fee),
                 "مبلغ_برآوردی":(_round(inv["amount_estimate"]["estimated_total"]) if inv["amount_estimate"] else None),
