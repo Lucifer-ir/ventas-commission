@@ -27,3 +27,7 @@ Excel files are processed in the browser and are not uploaded to a server. Pyodi
 ## Tests
 Run from the repository root:
 `python -m unittest -v tests/test_commission_engine.py`
+
+
+## Missing line-total handling
+Some invoice exports contain a blank final product amount while the unit price and invoice adjustment rows are present. Python calculates a diagnostic estimate from unit price × quantity (blank quantity is treated as one product row) plus signed invoice adjustments. It only uses the estimate in commission calculations when it reconciles to the recorded payment total within 1 rial. Otherwise the invoice remains excluded from confirmed commissions and the estimate plus difference are shown in the issue report.
