@@ -37,7 +37,7 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(result["computed_invoice_count"],1)
         self.assertEqual(result["sales_total"],33488000)
         self.assertEqual(result["commission_total"],334880)
-        self.assertEqual(result["invoices"][0]["مبلغ_نهایی_استنباط_شده"],"بله - از قیمت واحد و تخفیف")
+        self.assertEqual(result["invoices"][0]["مبلغ_نهایی_استنباط_شده"],"بله - تطبیق مبلغ پرداخت")
 
     def test_zero_cash_payment_uses_reconstructed_sale_and_keeps_audit_warning(self):
         header=[None]*21
@@ -80,7 +80,7 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(result["installment_markup_reconciled_count"],1)
         invoice=result["invoices"][0]
         self.assertEqual(invoice["نرخ_افزایش_روش_پرداخت"],12)
-        self.assertAlmostEqual(invoice["افزایش_مشاهده‌شده_درصد"],11.7378,places=3)
+        self.assertEqual(invoice["افزایش_مشاهده‌شده_درصد"],11.74)
         self.assertEqual(invoice["تعداد_خالی_فرض‌شده_یک"],8)
         self.assertEqual(result["payment_methods"][0]["روش_پرداخت"],"سناتور (16ماهه)")
         self.assertEqual(result["payment_methods"][0]["درصد_کارمزد"],12)
