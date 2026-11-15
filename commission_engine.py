@@ -274,6 +274,7 @@ def analyze_workbooks(sales_rows, rate_rows, commission_percent=1.0, month_filte
             "نرخ_افزایش_روش_پرداخت":_round(inv["markup_match"]["expected_rate"]) if inv["markup_match"] else None,
             "افزایش_مشاهده‌شده_درصد":_round(inv["markup_match"]["observed_rate"]) if inv["markup_match"] else None,
             "اختلاف_با_نرخ_مجاز_واحد_درصد":_round(inv["markup_match"]["delta_pp"]) if inv["markup_match"] else None,
+            "اختلاف_ریالی_با_افزایش_دقیق":_round(inv["markup_match"]["difference_from_expected_payment"]) if inv["markup_match"] else None,
             "تعداد_خالی_فرض‌شده_یک":inv["blank_quantity_count"],
             "هشدار_پرداخت":"روش نقد با مبلغ صفر ثبت شده؛ فروش از قیمت واحد و تخفیف محاسبه شد" if inv["zero_cash_inferred"] else "",
             "وضعیت_تطبیق_اقساط":"تطبیق با نرخ روش پرداخت تایید شد" if inv["markup_match"] else "",
