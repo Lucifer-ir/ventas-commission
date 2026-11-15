@@ -5,7 +5,7 @@ Persian RTL commission calculator for the store's Excel invoice and payment-fee 
 ## GitHub Pages
 Open: https://lucifer-ir.github.io/ventas-commission/
 
-The browser uses SheetJS to decode XLSX cells only. Invoice parsing, payment-method matching, fee calculation, reconciliation, fee allocation, negative/refund handling and employee commission calculations run in Python through Pyodide. The Python engine is in `commission_engine.py`.
+The browser uses SheetJS to decode XLSX cells only. Invoice parsing, payment-method matching, fee calculation, reconciliation, fee allocation, negative/refund handling, monthly reporting and employee commission calculations run in Python through Pyodide. Chart.js renders the interactive management dashboard. The Python engine is in `commission_engine.py`.
 
 ## Use
 1. Select the invoice workbook.
@@ -19,7 +19,11 @@ The browser uses SheetJS to decode XLSX cells only. Invoice parsing, payment-met
 - Blank fee percentage = 0% fee, as instructed.
 - Multiple-payment fees are allocated proportionally across product rows.
 - Negative invoices/returns reverse employee commission rather than being marked as an excessive fee.
-- Missing product amounts, missing salesperson/payment data, unknown payment methods, and payment/product total mismatches are excluded from confirmed commissions and shown in the exception report.
+- Missing product totals can be reconstructed from unit price × quantity plus signed invoice adjustments when the payment total reconciles or the observed installment uplift matches the configured payment-method rate within 0.5 percentage points.
+- Blank quantities are treated as one product per exported row and are explicitly flagged in invoice details.
+- A payment total that is higher than the product amount by approximately the configured installment rate (for example, 11.74% against a 12% Senator 16-month rate) is accepted as an installment uplift, not treated as an invoice mismatch. The observed rate, configured rate, percentage-point variance and rial difference from the exact uplift are retained in invoice details.
+- Payment processing fees are still calculated from each recorded payment row using that method's configured rate, then allocated across product rows; blank rates mean 0%.
+- Other missing product amounts, missing salesperson/payment data, unknown payment methods and material unmatched payment/product differences remain in the exception report.
 
 ## Privacy
 Excel files are processed in the browser and are not uploaded to a server. Pyodide and SheetJS are loaded from versioned CDNs, so an internet connection is required.
