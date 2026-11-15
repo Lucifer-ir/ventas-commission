@@ -24,5 +24,36 @@ class EngineTests(unittest.TestCase):
         r=analyze_workbooks(rows,[[None,"روش نقدی",None]])
         self.assertEqual(r["issue_invoice_count"],1); self.assertIn("برابر نیست",r["issues"][0]["علت_بررسی"])
 
+
+    def test_blank_total_is_reconstructed_only_when_payment_reconciles(self):
+        header=[None]*21
+        header[0]="اطلاعات تراکنش"; header[1]="1405/07/01"; header[7]="INV-INFER"; header[11]="مشتری نمونه"
+        product=[None]*21
+        product[6]="نام کالا"; product[8]="مامور نمونه"; product[9]=None
+        product[12]=None; product[13]=41860000; product[14]="کالا"
+        discount=[-8372000,"جشنواره خرید نقدی"]
+        rows=[header,product,discount,["اطلاعات پرداخت+"],["مقدار","روش پرداخت"],[33488000,"پرداخت نقدی"],[33488000,"جمع روش های پرداخت"]]
+        result=analyze_workbooks(rows,[[None,"پرداخت نقدی",None]])
+        self.assertEqual(result["computed_invoice_count"],1)
+        self.assertEqual(result["sales_total"],33488000)
+        self.assertEqual(result["commission_total"],334880)
+        self.assertEqual(result["invoices"][0]["مبلغ_نهایی_استنباط_شده"],"بله - با تطبیق پرداخت")
+
+    def test_blank_total_with_zero_payment_stays_in_issues_with_estimate(self):
+        header=[None]*21
+        header[0]="اطلاعات تراکنش"; header[1]="1405/07/01"; header[7]="3-2-20260923-100012"; header[11]="طاهره بیاتی"
+        product=[None]*21
+        product[6]="نام کالا"; product[8]="69 سعید اورنگ راد"; product[9]=None
+        product[12]=None; product[13]=41860000; product[14]="شلوار جین"
+        discount=[-8372000,"جشنواره خرید نقدی"]
+        rows=[header,product,discount,["اطلاعات پرداخت+"],["مقدار","روش پرداخت"],[0,"نقد"],[0,"جمع روش های پرداخت"]]
+        result=analyze_workbooks(rows,[[None,"نقد",None]])
+        self.assertEqual(result["computed_invoice_count"],0)
+        self.assertEqual(result["issue_invoice_count"],1)
+        issue=result["issues"][0]
+        self.assertEqual(issue["مبلغ_برآوردی_از_قیمت_واحد"],33488000)
+        self.assertEqual(issue["اختلاف_برآورد_با_پرداخت"],33488000)
+        self.assertIn("جمع پرداخت ثبت‌شده",issue["علت_بررسی"])
+
 if __name__=="__main__":
     unittest.main()
