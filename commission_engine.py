@@ -178,6 +178,11 @@ def analyze_workbooks(sales_rows, rate_rows, commission_percent=1.0, month_filte
     issues, details, unknown_all = [], [], set()
     sales_total = fee_total = base_total = 0.0
     negative_count = 0
+    total_payments = 0.0
+    monthly = defaultdict(lambda: {"sales":0.0,"payments":0.0,"fees":0.0,"commission":0.0,"invoices":0})
+    payment_methods = defaultdict(lambda: {"amount":0.0,"fee":0.0,"count":0,"rate":0.0})
+    installment_match_count = 0
+    inferred_count = 0
     for inv in selected:
         problems = list(dict.fromkeys(inv["problems"]))
         item_total = sum((x["amount"] or 0.0) for x in inv["items"])
@@ -187,12 +192,19 @@ def analyze_workbooks(sales_rows, rate_rows, commission_percent=1.0, month_filte
         transaction_type = "برگشت / کاهنده" if is_return else "فروش"
         fee = 0.0
         unknown = []
+        month_key = inv["date"][:7] if len(inv["date"]) >= 7 else "نامشخص"
         for pay in inv["payments"]:
             k = _key(pay["method"])
             if k not in rates:
                 if abs(pay["amount"]) > 0: unknown.append(pay["method"])
             else:
-                fee += pay["amount"] * rates[k] / 100.0
+                method_fee = pay["amount"] * rates[k] / 100.0
+                fee += method_fee
+                method_row = payment_methods[pay["method"]]
+                method_row["amount"] += pay["amount"]
+                method_row["fee"] += method_fee
+                method_row["count"] += 1
+                method_row["rate"] = rates[k]
         if not inv["markup_match"]:
             inv["markup_match"] = _payment_markup_match(inv["payments"], rates, item_total, payment_total)
         if (inv["items"] and abs(item_total - payment_total) > 1
@@ -227,6 +239,14 @@ def analyze_workbooks(sales_rows, rate_rows, commission_percent=1.0, month_filte
         sales_total += item_total
         fee_total += fee
         base_total += invoice_base
+        total_payments += payment_total
+        monthly[month_key]["sales"] += item_total
+        monthly[month_key]["payments"] += payment_total
+        monthly[month_key]["fees"] += fee
+        monthly[month_key]["commission"] += invoice_commission
+        monthly[month_key]["invoices"] += 1
+        if inv["markup_match"]: installment_match_count += 1
+        if inv["amount_inferred"]: inferred_count += 1
         for item in inv["items"]:
             amount, agent = item["amount"] or 0.0, item["agent"]
             if not agent: continue
@@ -243,7 +263,8 @@ def analyze_workbooks(sales_rows, rate_rows, commission_percent=1.0, month_filte
         details.append({
             "تاریخ":inv["date"],"شماره_فاکتور":inv["number"],"مشتری":inv["customer"],
             "نوع_تراکنش":transaction_type,"فروش_نهایی_کالاها":_round(item_total),
-            "جمع_پرداخت":_round(payment_total),"کارمزد":_round(fee),
+            "جمع_پرداخت":_round(payment_total),"روش_پرداخت":"، ".join(pay["method"] for pay in inv["payments"]),
+            "تعداد_ردیف_کالا":len(inv["items"]),"کارمزد":_round(fee),
             "مبنای_پورسانت":_round(invoice_base),"پورسانت":_round(invoice_commission),
             "مبلغ_نهایی_استنباط_شده":("بله - " + inv.get("amount_inferred_reason", "بازسازی از قیمت واحد")) if inv["amount_inferred"] else "خیر",
             "نرخ_افزایش_روش_پرداخت":_round(inv["markup_match"]["expected_rate"]) if inv["markup_match"] else None,
@@ -263,17 +284,34 @@ def analyze_workbooks(sales_rows, rate_rows, commission_percent=1.0, month_filte
             "پورسانت":_round(row["commission"])
         })
     computed = sum(1 for x in details if x["وضعیت"] == "محاسبه شد")
+    staff_lookup = {row["کارمند"]: row for row in staff_rows}
+    monthly_rows = [
+        {"ماه": key, "فروش": _round(value["sales"]), "پرداخت": _round(value["payments"]),
+         "کارمزد": _round(value["fees"]), "پورسانت": _round(value["commission"]),
+         "تعداد_فاکتور": value["invoices"]}
+        for key, value in sorted(monthly.items())
+    ]
+    payment_rows = [
+        {"روش_پرداخت": name, "مبلغ_پرداخت": _round(value["amount"]),
+         "کارمزد": _round(value["fee"]), "درصد_کارمزد": value["rate"],
+         "تعداد_استفاده": value["count"]}
+        for name, value in sorted(payment_methods.items(), key=lambda item: item[1]["amount"], reverse=True)
+    ]
     return {
         "months":months,"rates_loaded":len(rates),"invoice_count_total":len(invoices),
         "invoice_count_filtered":len(selected),"computed_invoice_count":computed,
         "issue_invoice_count":len(issues),"negative_invoice_count":negative_count,
         "zero_cash_inferred_count":sum(1 for x in selected if x["zero_cash_inferred"]),
-        "installment_markup_reconciled_count":sum(1 for x in selected if x["markup_match"]),
-        "sales_total":_round(sales_total),"fee_total":_round(fee_total),
-        "commission_base_total":_round(base_total),
+        "inferred_count":inferred_count,
+        "installment_markup_reconciled_count":installment_match_count,
+        "sales_total":_round(sales_total),"payment_total":_round(total_payments),
+        "fee_total":_round(fee_total),"commission_base_total":_round(base_total),
         "commission_total":_round(sum(x["پورسانت"] for x in staff_rows)),
+        "average_invoice":_round(sales_total / computed) if computed else 0,
+        "reconciliation_rate":_round(computed * 100 / len(selected)) if selected else 0,
         "unknown_methods":sorted(unknown_all),"staff":staff_rows,"issues":issues,"invoices":details,
-        "fee_rule":"درصد خالی = صفر درصد کارمزد"
+        "monthly":monthly_rows,"payment_methods":payment_rows,
+        "fee_rule":"درصد خالی = صفر درصد کارمزد؛ افزایش اقساطی نزدیک به نرخ فایل با تلورانس ۰٫۵ واحد درصد پذیرفته می‌شود"
     }
 
 def analyze_workbooks_json(sales_json, rates_json, commission_percent=1.0, month_filter="all"):
