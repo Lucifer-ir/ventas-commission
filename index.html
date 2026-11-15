@@ -39,7 +39,7 @@
   <div class="stats" id="stats"></div>
  </div>
  <div class="panel"><div class="sectionhead"><h2 class="sectiontitle">۳. جمع پورسانت کارکنان</h2><span class="tag">گزارش ماه انتخاب‌شده</span></div><div class="tablewrap"><table id="staffTable"></table></div><div class="actions"><button class="btn" id="exportStaff">خروجی اکسل کارکنان</button></div></div>
- <div class="panel"><div class="sectionhead"><h2 class="sectiontitle">۴. فاکتورهای نیازمند بررسی</h2><span class="tag" id="issueCount">۰ مورد</span></div><div class="note" style="margin-bottom:12px">فاکتورهایی که مبلغ کالا، مامور فروش یا روش پرداخت آن‌ها ناقص است یا جمع پرداخت با فروش نهایی تطابق ندارد، از پورسانت قطعی کنار گذاشته شده‌اند. اگر مبلغ نهایی ردیف خالی باشد، Python فقط در صورت تطبیق «قیمت واحد × تعداد + تعدیلات» با جمع پرداخت، مبلغ را بازسازی می‌کند؛ در غیر این صورت مبلغ برآوردی و اختلاف برای بررسی نمایش داده می‌شود.</div><div class="tablewrap"><table id="issuesTable"></table></div><div class="actions"><button class="btn secondary" id="exportIssues">خروجی اکسل مغایرت‌ها</button></div></div>
+ <div class="panel"><div class="sectionhead"><h2 class="sectiontitle">۴. فاکتورهای نیازمند بررسی</h2><span class="tag" id="issueCount">۰ مورد</span></div><div class="note" style="margin-bottom:12px">فاکتورهایی که اطلاعات لازم برای محاسبه آن‌ها ناقص است در این بخش نمایش داده می‌شوند. اگر مبلغ نهایی کالا خالی باشد، برنامه مبلغ را از «قیمت واحد × تعداد + تعدیلات (مثل تخفیف)» بازسازی می‌کند. در فاکتورهایی که ردیف نقد با مبلغ صفر ثبت شده، صفر به‌عنوان مبلغ فروش در نظر گرفته نمی‌شود؛ مبلغ کالا پس از کسر تخفیف مبنای پورسانت خواهد بود و هشدار صفر بودن پرداخت در جزئیات فاکتور باقی می‌ماند.</div><div class="tablewrap"><table id="issuesTable"></table></div><div class="actions"><button class="btn secondary" id="exportIssues">خروجی اکسل مغایرت‌ها</button></div></div>
  <div class="panel"><div class="sectionhead"><h2 class="sectiontitle">۵. جزئیات فاکتورها</h2><span class="tag">فاکتورهای محاسبه‌شده و بررسی‌نشده</span></div><div class="tablewrap"><table id="invoiceTable"></table></div><div class="actions"><button class="btn secondary" id="exportInvoices">خروجی اکسل جزئیات فاکتورها</button></div></div>
 </section>
 <div class="footer">Ventas Commission · تحلیل Python داخل مرورگر · فایل‌های اکسل شما از دستگاه خارج نمی‌شوند</div>
@@ -134,6 +134,7 @@ function renderAnalysis(data) {
     ['فاکتورهای محاسبه‌شده', data.computed_invoice_count],
     ['فاکتورهای نیازمند بررسی', data.issue_invoice_count],
     ['فاکتورهای برگشت / منفی', data.negative_invoice_count],
+    ['فاکتورهای با مبلغ بازسازی‌شده', data.zero_cash_inferred_count || 0],
     ['فروش نهایی قابل محاسبه', formatNumber(data.sales_total) + ' ریال'],
     ['مجموع کارمزد', formatNumber(data.fee_total) + ' ریال'],
     ['مجموع مبنای پورسانت', formatNumber(data.commission_base_total) + ' ریال'],
