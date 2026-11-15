@@ -39,7 +39,7 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(result["commission_total"],334880)
         self.assertEqual(result["invoices"][0]["مبلغ_نهایی_استنباط_شده"],"بله - با تطبیق پرداخت")
 
-    def test_blank_total_with_zero_payment_stays_in_issues_with_estimate(self):
+    def test_zero_cash_payment_uses_reconstructed_sale_and_keeps_audit_warning(self):
         header=[None]*21
         header[0]="اطلاعات تراکنش"; header[1]="1405/07/01"; header[7]="3-2-20260923-100012"; header[11]="طاهره بیاتی"
         product=[None]*21
@@ -48,12 +48,14 @@ class EngineTests(unittest.TestCase):
         discount=[-8372000,"جشنواره خرید نقدی"]
         rows=[header,product,discount,["اطلاعات پرداخت+"],["مقدار","روش پرداخت"],[0,"نقد"],[0,"جمع روش های پرداخت"]]
         result=analyze_workbooks(rows,[[None,"نقد",None]])
-        self.assertEqual(result["computed_invoice_count"],0)
-        self.assertEqual(result["issue_invoice_count"],1)
-        issue=result["issues"][0]
-        self.assertEqual(issue["مبلغ_برآوردی_از_قیمت_واحد"],33488000)
-        self.assertEqual(issue["اختلاف_برآورد_با_پرداخت"],33488000)
-        self.assertIn("جمع پرداخت ثبت‌شده",issue["علت_بررسی"])
+        self.assertEqual(result["computed_invoice_count"],1)
+        self.assertEqual(result["issue_invoice_count"],0)
+        self.assertEqual(result["sales_total"],33488000)
+        self.assertEqual(result["fee_total"],0)
+        self.assertEqual(result["commission_total"],334880)
+        self.assertEqual(result["zero_cash_inferred_count"],1)
+        self.assertEqual(result["staff"][0]["کارمند"],"69 سعید اورنگ راد")
+        self.assertIn("روش نقد با مبلغ صفر",result["invoices"][0]["هشدار_پرداخت"])
 
 if __name__=="__main__":
     unittest.main()
