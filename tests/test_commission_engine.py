@@ -57,5 +57,33 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(result["staff"][0]["کارمند"],"69 سعید اورنگ راد")
         self.assertIn("روش نقد با مبلغ صفر",result["invoices"][0]["هشدار_پرداخت"])
 
+    def test_senator_sixteen_month_markup_within_half_point_is_accepted(self):
+        header=[None]*21
+        header[0]="اطلاعات تراکنش"; header[1]="1405/07/03"; header[7]="3-2-20260925-100015"; header[11]="فرنگیس ملکی"
+        unit_prices=[38740000,56900000,118400000,3900000,5850000,12805000,3200000,5694000]
+        agents=["69 سعید اورنگ راد","69 سعید اورنگ راد","60 ندا اصغری","71 محمد گل کف",
+                "60 ندا اصغری","69 سعید اورنگ راد","60 ندا اصغری","60 ندا اصغری"]
+        product_rows=[]
+        for price,agent in zip(unit_prices,agents):
+            product=[None]*21
+            product[6]="نام کالا"; product[8]=agent; product[9]=None
+            product[12]=None; product[13]=price; product[14]="کالای نمونه"
+            product_rows.append(product)
+        rows=[header]+product_rows+[["اطلاعات پرداخت+"] ,["مقدار","روش پرداخت"],
+              [274299000,"سناتور (16ماهه)"],[274299000,"جمع روش های پرداخت"]]
+        rates=[[None,"سناتور",4],[None,"سناتور (16ماهه)",12]]
+        result=analyze_workbooks(rows,rates)
+        self.assertEqual(result["computed_invoice_count"],1)
+        self.assertEqual(result["issue_invoice_count"],0)
+        self.assertEqual(result["sales_total"],245489000)
+        self.assertEqual(result["payment_total"],274299000)
+        self.assertEqual(result["installment_markup_reconciled_count"],1)
+        invoice=result["invoices"][0]
+        self.assertEqual(invoice["نرخ_افزایش_روش_پرداخت"],12)
+        self.assertAlmostEqual(invoice["افزایش_مشاهده‌شده_درصد"],11.7378,places=3)
+        self.assertEqual(invoice["تعداد_خالی_فرض‌شده_یک"],8)
+        self.assertEqual(result["payment_methods"][0]["روش_پرداخت"],"سناتور (16ماهه)")
+        self.assertEqual(result["payment_methods"][0]["درصد_کارمزد"],12)
+
 if __name__=="__main__":
     unittest.main()
