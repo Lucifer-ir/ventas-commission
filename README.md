@@ -1,20 +1,29 @@
 # Ventas — Commission Calculator
 
-A browser-based Persian RTL tool for calculating salesperson commissions from the store's Excel exports.
+Persian RTL commission calculator for the store's Excel invoice and payment-fee exports.
+
+## GitHub Pages
+Open: https://lucifer-ir.github.io/ventas-commission/
+
+The browser uses SheetJS to decode XLSX cells only. Invoice parsing, payment-method matching, fee calculation, reconciliation, fee allocation, negative/refund handling and employee commission calculations run in Python through Pyodide. The Python engine is in `commission_engine.py`.
 
 ## Use
-1. Open the GitHub Pages site: https://Lucifer-ir.github.io/ventas-commission/
-2. Select the invoice Excel file.
-3. Select the payment-fee percentage workbook.
-4. Run the calculation, choose a month, and set the employee commission rate (defaults to 1%).
-5. Export employee totals, invoice details, or the separate exception report.
+1. Select the invoice workbook.
+2. Select the payment-fee percentage workbook.
+3. Run the analysis; choose a month and set the commission percentage (default 1%).
+4. Export employee totals, invoice issues, or invoice details.
 
 ## Calculation rules
-- Commission base is the invoice's final product amount after payment-method fees.
-- Payment-method fees are calculated from each payment amount using the percentage workbook.
-- Blank percentages in the rate workbook mean **0% fee**, per the operator's instruction.
-- Invoices with missing amounts/salesperson fields, unknown payment method names, or payment/product total mismatches are placed in the exception report and excluded from confirmed commission totals.
-- For invoices paid using multiple payment methods, fees are allocated proportionally across product rows and their salespeople.
+- Product amounts are read from the invoice report's final product-total column.
+- Payment fees are calculated per payment method and payment amount.
+- Blank fee percentage = 0% fee, as instructed.
+- Multiple-payment fees are allocated proportionally across product rows.
+- Negative invoices/returns reverse employee commission rather than being marked as an excessive fee.
+- Missing product amounts, missing salesperson/payment data, unknown payment methods, and payment/product total mismatches are excluded from confirmed commissions and shown in the exception report.
 
 ## Privacy
-Excel files are processed in the browser and are not uploaded to GitHub or any server. The XLSX library is loaded from jsDelivr, so an internet connection is needed to use the tool.
+Excel files are processed in the browser and are not uploaded to a server. Pyodide and SheetJS are loaded from versioned CDNs, so an internet connection is required.
+
+## Tests
+Run from the repository root:
+`python -m unittest -v tests/test_commission_engine.py`
