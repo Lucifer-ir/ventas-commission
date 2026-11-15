@@ -29,6 +29,17 @@ jobs:
           python-version: '3.13'
       - name: Run commission engine tests
         run: python -m unittest -v tests/test_commission_engine.py
+      - name: Check frontend JavaScript syntax
+        run: |
+          python - <<'PY'
+          import re
+          source = open("index.html", encoding="utf-8").read()
+          scripts = re.findall(r"<script>(.*?)</script>", source, flags=re.S)
+          if not scripts:
+              raise SystemExit("No inline application script found")
+          open("/tmp/ventas-inline.js", "w", encoding="utf-8").write("\\n".join(scripts))
+          PY
+          node --check /tmp/ventas-inline.js
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
       - name: Upload site artifact
